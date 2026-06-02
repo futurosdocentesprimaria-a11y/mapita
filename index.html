@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Reto: Mapa Físico de América!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f3;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        p.sub {
+            color: #7f8c8d;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        #game-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 100%;
+        }
+
+        #panel-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #34495e;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #pregunta-box {
+            background: #3498db;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+            border: 3px solid #bdc3c7;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        #feedback {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            height: 25px;
+        }
+
+        .correcto { color: #27ae60; }
+        .incorrecto { color: #c0392b; }
+
+        .btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            display: none;
+            font-weight: bold;
+        }
+        .btn:hover { background-color: #27ae60; }
+    </style>
+</head>
+<body>
+
+    <h1>🌎 ¡Exploradores de América! 🧭</h1>
+    <p class="sub">Pon a prueba tus conocimientos de geografía física (1º ESO)</p>
+
+    <div id="game-container">
+        <div id="panel-info">
+            <div id="score-box">Puntos: <span id="puntos">0</span></div>
+            <div id="racha-box">🔥 Racha: <span id="racha">0</span></div>
+        </div>
+
+        <div id="pregunta-box">
+            ¿Dónde está: <span id="objetivo">Cargando...</span>?
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="mapaCanvas"></canvas>
+        </div>
+
+        <div id="feedback"></div>
+        <button id="btn-reiniciar" class="btn" onclick="reiniciarJuego()">Jugar otra vez</button>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN DEL JUEGO ---
+        // Lista de lugares. Las coordenadas (x, y) corresponden a un mapa de 600x1100 px (proporción aproximada de tu foto)
+        const lugares = [
+            { nombre: "la Cordillera de los Andes", x: 335, y: 720, radio: 40 },
+            { nombre: "la Cuenca del Amazonas", x: 420, y: 550, radio: 50 },
+            { nombre: "las Montañas Rocosas", x: 180, y: 260, radio: 45 },
+            { nombre: "las Grandes Llanuras", x: 260, y: 280, radio: 40 },
+            { nombre: "el Golfo de México", x: 290, y: 410, radio: 35 },
+            { nombre: "el Macizo de las Guayanas", x: 420, y: 490, radio: 35 },
+            { nombre: "la Península de California", x: 160, y: 390, radio: 25 },
+            { nombre: "Groenlandia", x: 440, y: 120, radio: 60 }
+        ];
+
+        let preguntasDisponibles = [];
+        let lugarActual = null;
+        let puntos = 0;
+        let racha = 0;
+
+        const canvas = document.getElementById('mapaCanvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        // IMPORTANTE: Pon aquí la ruta de la foto de tu libro. 
+        // Si la subes a GitHub en la misma carpeta, basta con poner el nombre del archivo:
+        img.src = 'mapa_america.png'; 
+
+        // Cuando la imagen carga, ajustamos el lienzo y arranca el juego
+        img.onload = function() {
+            canvas.width = 600;
+            canvas.height = 1100;
+            dibujarMapa();
+            iniciarJuego();
+        };
+
+        function dibujarMapa() {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
+
+        function iniciarJuego() {
+            preguntasDisponibles = [...lugares];
+            puntos = 0;
+            racha = 0;
+            document.getElementById('puntos').innerText = puntos;
+            document.getElementById('racha').innerText = racha;
+            document.getElementById('btn-reiniciar').style.display = 'none';
+            siguientePregunta();
+        }
+
+        function siguientePregunta() {
+            document.getElementById('feedback').innerText = "";
+            dibujarMapa(); // Limpia marcas anteriores
+
+            if (preguntasDisponibles.length === 0) {
+                document.getElementById('pregunta-box').innerHTML = "🎉 ¡Fin del juego! Eres un maestro de la geografía.";
+                document.getElementById('btn-reiniciar').style.style.display = 'inline-block';
+                lugarActual = null;
+                return;
+            }
+
+            // Seleccionar un lugar al azar
+            const index = Math.floor(Math.random() * preguntasDisponibles.length);
+            lugarActual = preguntasDisponibles[index];
+            // Lo quitamos para que no se repita en esta partida
+            preguntasDisponibles.splice(index, 1); 
+
+            document.getElementById('objetivo').innerText = lugarActual.nombre;
+        }
+
+        // Detectar los clics en el lienzo
+        canvas.addEventListener('click', function(event) {
+            if (!lugarActual) return; // Si terminó el juego, no hacer nada
+
+            // Adaptar las coordenadas del clic al tamaño real del lienzo (por si se escala en pantallas pequeñas)
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const clickX = (event.clientX - rect.left) * scaleX;
+            const clickY = (event.clientY - rect.top) * scaleY;
+
+            // Calcular distancia matemática entre el clic y el objetivo
+            const distancia = Math.sqrt(Math.pow(clickX - lugarActual.x, 2) + Math.pow(clickY - lugarActual.y, 2));
+
+            const feedbackEl = document.getElementById('feedback');
+
+            if (distancia <= lugarActual.radio) {
+                // ¡ACIERTO!
+                feedbackEl.innerHTML = "<span class='correcto'>¡Excelente! ✨ ¡Acertaste!</span>";
+                puntos += 10 + (racha * 2); // Bonus por racha
+                racha++;
+                
+                // Dibujar un círculo verde donde acertó
+                ctx.beginPath();
+                ctx.arc(lugarActual.x, lugarActual.y, 20, 0, 2 * Math.PI);
+                ctx.fillStyle = "rgba(39, 174, 96, 0.6)";
+                ctx.fill();
+                ctx.strokeStyle = "#27ae60";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                setTimeout(siguientePregunta, 1500); // Pasa a la siguiente en 1.5 segundos
+            } else {
+                // ¡FALLO!
+                feedbackEl.innerHTML = "<span class='incorrecto'>¡Ups! Inténtalo de nuevo 🗺️</span>";
+                racha = 0;
+                if (puntos > 0) puntos -= 5; // Penalización suave
+            }
+
+            document.getElementById('puntos').innerText = puntos;
+            document.getElementById('racha').innerText = racha;
+        });
+
+        function reiniciarJuego() {
+            iniciarJuego();
+        }
+    </script>
+</body>
+</html>
